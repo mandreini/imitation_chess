@@ -1,0 +1,9 @@
+Board class:
+  create board (with gridlines)
+  store location of pieces
+  1-6 for team 1
+  11-16 for team 2
+
+Pieces:
+  Piece class with pawn, rook ... king classes inheriting from it
+  Control movement
