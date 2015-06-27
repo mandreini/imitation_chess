@@ -18,6 +18,11 @@ class Board(object):
         self.grid = self._setup_grid(grid)
 
     def _setup_grid(self, grid):
+        """
+        This will initialize the chessboard in memory. Currently only supports the traditional start
+        :param grid: 8x8 list of 0's
+        :return: grid populated with pieces
+        """
         # row of pawns
         for i in range(self.units):
             grid[1][i] = pieces.Pawn(False)
@@ -71,6 +76,7 @@ class Board(object):
 
                 pygame.draw.rect(screen, cell_color, cell, 0)
 
+                # pieces
                 cell_piece = self.grid[rownum][colnum]
                 if isinstance(cell_piece, pieces.Piece):
                     cell_piece.draw(screen, cell.centerx, cell.centery)
