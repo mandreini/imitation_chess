@@ -7,3 +7,13 @@ Board class:
 Pieces:
   Piece class with pawn, rook ... king classes inheriting from it
   Control movement
+
+TODO:
+  Move pieces - start with just drag and drop, then add drag + click
+  Add a 'where pieces can move' feature
+  Themes and crap
+
+Already Done:
+  Board setup
+  Pieces in place
+  Cell selection
