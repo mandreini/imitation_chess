@@ -9,11 +9,27 @@ Pieces:
   Control movement
 
 TODO:
-  Move pieces - start with just drag and drop, then add drag + click
-  Add a 'where pieces can move' feature
+  Undo
   Themes and crap
+  menu
+  AI for when I have all the time
+  etc etc
 
 Already Done:
   Board setup
   Pieces in place
   Cell selection
+  Move pieces - start with just drag and drop, then add drag + click
+  Removing pieces
+  Pawn moving 2 steps from starting position
+  Only let piece move if it's a valid move
+  Castling
+  Turns!
+
+Issues:
+  Trying to place a piece outside of the board causes a crash
+
+Potential Features I want in but will never be bothered to code:
+  Create your own board-setup, theme, pieces
+  Shoji pieces/rules
+  3-D
