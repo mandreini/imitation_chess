@@ -1,18 +1,7 @@
-Board class:
-  create board (with gridlines)
-  store location of pieces
-  1-6 for team 1
-  11-16 for team 2
-
-Pieces:
-  Piece class with pawn, rook ... king classes inheriting from it
-  Control movement
-
 TODO:
   Win condition
-  Undo
-  Themes and crap
-  menu
+  custom board setup
+  better menu?
   AI for when I have all the time
   etc etc
 
@@ -20,17 +9,25 @@ Already Done:
   Board setup
   Pieces in place
   Cell selection
-  Move pieces - start with just drag and drop, then add drag + click
+  Move pieces - drag and drop
   Removing pieces
   Pawn moving 2 steps from starting position
   Only let piece move if it's a valid move
   Castling
   Turns!
+  Themes
 
 Issues:
-  Trying to place a piece outside of the board causes a crash
+  Pawn can move forward 2 blocks and take off a piece
+  Undo - copy.deepcopy makes pygame cry for some unknown reason
+  copy.deepcopy still gives a pointer/reference and thus board.undo is broken
+
+Menu options:
+  1-2 players
+  Theme / color
+  Piece type?
 
 Potential Features I want in but will never be bothered to code:
   Create your own board-setup, theme, pieces
   Shoji pieces/rules
-  3-D
+  IN 3-D (honest trailer phantom menace voice)

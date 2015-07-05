@@ -1,19 +1,26 @@
 __author__ = 'Matt'
 
+import copy
+
 import pygame
+
 import parameters
 import pieces
 
 class Board(object):
-    def __init__(self, width, height):
+    def __init__(self, width, height, theme='default'):
+        self.theme = theme
         self.units = parameters.units
-        self.odd_color = parameters.blue
-        self.even_color = parameters.dark_blue
-        self.outline = parameters.black
         self.surface = pygame.Rect((0,0), (width, height))
         self.surface.center = (parameters.xmax/2, parameters.ymax/2)
         self.find_cell_x = lambda pos: self.surface.left + pos * width / self.units
         self.find_cell_y = lambda pos: self.surface.top + pos * height / self.units
+        self.background_color, self.outline, self.odd_color, self.even_color = self._determine_theme_colors()
+
+        self.can_undo_txt = parameters.undo_font.render('Undo', 1, parameters.red)
+        self.disabled_undo_txt = parameters.undo_font.render('Undo', 1, parameters.black)
+        self.undo_rect = self.can_undo_txt.get_rect()
+        self.undo_rect.bottomright = (parameters.xmax, parameters.ymax)
 
         row = [0] * self.units
         grid = [row[:] for j in range(self.units)]
@@ -23,47 +30,82 @@ class Board(object):
         self.held_piece = None
         self.piece_original_pos = None
         self.piece_move_options = None
+        self.winner = None
 
         self.turn_player_2 = False
+        self.can_undo = False
+
+        self.past_moves = []
+
+    def _determine_theme_colors(self):
+        """
+        Determines the colors corresponding to the theme chosen (currently only supports color changes
+        :return:
+        """
+        # { key: [background, outline, odd_color, even_color] ... }
+        theme_parameters = {
+            'default': [parameters.white, parameters.black, parameters.blue, parameters.dark_blue],
+            'simplistic': [parameters.white, parameters.black, parameters.silver_hl, parameters.grey],
+            'flipped': [parameters.white, parameters.black, parameters.blue, parameters.dark_blue],
+            'vibrant': [parameters.silver_hl, parameters.gold_hl, parameters.brown, parameters.dark_green],
+        }
+
+        curr_theme = theme_parameters[self.theme]
+        return curr_theme
 
     def _setup_grid(self, grid):
         """
         This will initialize the chessboard in memory. Currently only supports the traditional start
         :param grid: 8x8 list of 0's
-        :return: grid populated with pieces
+        :return: 8x8 grid populated with pieces (and 0's)
         """
 
         # 2 rows of pawns
         for i in range(self.units):
-            grid[1][i] = pieces.Pawn(True, (1, i))
-            grid[-2][i] = pieces.Pawn(False, (-2, i))
+            grid[1][i] = pieces.Pawn(True, (1, i), self.theme)
+            grid[-2][i] = pieces.Pawn(False, (-2, i), self.theme)
 
         for team in range(-1, 1, 1):  # iterates -1 and 0
-            # -team as team == -1 -> player 2 -> --1 = +1 -> is_team2 = True
-            #          team ==  0 -> player 1 ->  -0 =  0 -> is_team2 = False
 
             side = grid[team]
             team_2 = not bool(team)
 
             # rooks
-            side[0] = pieces.Rook(team_2, (0, team))
-            side[-1] = pieces.Rook(team_2, (-1, team))
+            side[0] = pieces.Rook(team_2, (0, team), self.theme)
+            side[-1] = pieces.Rook(team_2, (-1, team), self.theme)
 
             # knights
-            side[1] = pieces.Knight(team_2, (1, team))
-            side[-2] = pieces.Knight(team_2, (-2, team))
+            side[1] = pieces.Knight(team_2, (1, team), self.theme)
+            side[-2] = pieces.Knight(team_2, (-2, team), self.theme)
 
             # bishops
-            side[2] = pieces.Bishop(team_2, (2, team))
-            side[-3] = pieces.Bishop(team_2, (-3, team))
+            side[2] = pieces.Bishop(team_2, (2, team), self.theme)
+            side[-3] = pieces.Bishop(team_2, (-3, team), self.theme)
 
             # queen
-            side[3] = pieces.Queen(team_2, (3, team))
+            side[3] = pieces.Queen(team_2, (3, team), self.theme)
 
             # king
-            side[4] = pieces.King(team_2, (4, team))
+            side[4] = pieces.King(team_2, (4, team), self.theme)
 
         return grid
+
+    def do_game_event(self, event, mousex, mousey):
+        """
+        This will process the event when the gameboard is active
+        :param event: pygame.Event object to process
+        :return:
+        """
+        if self.winner is None:
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                new_sel_cell = self.get_square(mousex, mousey)
+                self.selected_cell = new_sel_cell if self.selected_cell != new_sel_cell else None
+                self.grab_piece()
+                if self.undo_rect.collidepoint((mousex, mousey)) and self.can_undo:
+                    self.undo()
+
+            if event.type == pygame.MOUSEBUTTONUP:
+                self.drop_piece(mousex, mousey)
 
     def get_square(self, mousex, mousey):
         """
@@ -107,7 +149,6 @@ class Board(object):
                         held_square.castle_opts = castle_opts
                         self.piece_move_options.extend(castle_opts[::3])
 
-
     def drop_piece(self, mousex, mousey):
         """
         If there is a piece being held, drops the piece on the square the mouse is hovering over on mouse-up
@@ -115,15 +156,29 @@ class Board(object):
         :param mousey: int - y position of the mouse
         """
         if self.held_piece is not None:
-            mouse_row, mouse_col = self.get_square(mousex, mousey)
+            mouse_pos = self.get_square(mousex, mousey)
 
-            if (mouse_row, mouse_col) in self.piece_move_options:
+            # occasionally does not let players place certain pieces in certain areas..?
+            if (mouse_pos is not None and mouse_pos in self.piece_move_options
+                and mouse_pos != self.held_piece.current_pos):
+                self.turn_player_2 = not self.turn_player_2
+
+                mouse_row, mouse_col = mouse_pos
+
+                old_pos = self.piece_original_pos
+                old_piece = self.held_piece
+                new_pos = mouse_pos
+                new_piece = copy.deepcopy(self.grid[mouse_row][mouse_col])
+                self.past_moves.append((old_pos, old_piece, new_pos, new_piece))
+
+                if isinstance(self.grid[mouse_row][mouse_col], pieces.King):
+                    self.winner = self.held_piece.is_team2
+
                 self.grid[mouse_row][mouse_col] = self.held_piece
                 self.held_piece.current_pos = (mouse_row, mouse_col)
 
                 if self.held_piece.current_pos != self.held_piece.starting_pos:
                     self.held_piece.has_moved = True
-                    self.turn_player_2 = not self.turn_player_2
 
                 if isinstance(self.held_piece, pieces.King):
                     if (mouse_row, mouse_col) in self.held_piece.castle_opts:
@@ -136,12 +191,26 @@ class Board(object):
                         self.grid[rook_old_pos[0]][rook_old_pos[1]], self.grid[rook_new_pos[0]][rook_new_pos[1]] = \
                         self.grid[rook_new_pos[0]][rook_new_pos[1]], self.grid[rook_old_pos[0]][rook_old_pos[1]]
 
+                self.can_undo = True
+
             else:
                 self.grid[self.piece_original_pos[0]][self.piece_original_pos[1]] = self.held_piece
 
             self.held_piece = None
             self.selected_cell = None
             self.piece_original_pos = None
+
+    def undo(self):
+        """ Undoes the last move """
+        # TODO un-break
+        old_pos, old_piece, new_pos, new_piece = self.past_moves[-1]
+        self.past_moves.pop(-1)
+        # new_piece -> old_pos
+        # old_piece -> new_pos
+        self.grid[old_pos[0]][old_pos[1]] = new_piece
+        self.grid[new_pos[0]][new_pos[1]] = old_piece
+
+        self.turn_player_2 = not self.turn_player_2
 
     def draw(self, screen, mousex, mousey):
         """
@@ -151,10 +220,10 @@ class Board(object):
         :param mousey: int - current mouse y position
         """
         # outline
+        screen.fill(self.background_color)
         pygame.draw.rect(screen, self.outline, self.surface, 5)
 
         # checkerboard
-        surfacetop, surfaceleft = self.surface.topleft
         cellsize = self.surface.width / self.units
         cell = pygame.Rect((0,0), (cellsize, cellsize))
         hover_cell = self.get_square(mousex, mousey)
@@ -209,3 +278,15 @@ class Board(object):
 
             # the piece being held
             self.held_piece.draw(screen, mousex, mousey, cellsize)
+
+        # undo button
+        undo_txt = self.can_undo_txt if self.can_undo else self.disabled_undo_txt
+        screen.blit(undo_txt, self.undo_rect)
+
+        # win condition
+        if self.winner is not None:
+            win_player = "2" if self.winner else "1"
+            win_txt = parameters.win_font.render("player %s has won!" % win_player, 1, parameters.green)
+            win_rect = win_txt.get_rect()
+            win_rect.center = (parameters.xmax/2, parameters.ymax/2)
+            screen.blit(win_txt, win_rect)

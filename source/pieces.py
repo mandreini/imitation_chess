@@ -12,14 +12,16 @@ class Piece(object):
     piece_num = 0
     name = 'default'
 
-    def __init__(self, is_team2, starting_pos):
+    def __init__(self, is_team2, starting_pos, theme='default'):
         corr_ind = lambda ind: parameters.units + ind if ind < 0 else ind
         corr_x = corr_ind(starting_pos[0])
         corr_y = corr_ind(starting_pos[1])
+
         self.starting_pos = (corr_x, corr_y)
         self.current_pos = (corr_x, corr_y)
         self.has_moved = False
         self.is_team2 = is_team2
+        self.theme = theme
 
         if is_team2:
             self.piece_color = parameters.black
@@ -36,12 +38,15 @@ class Piece(object):
           piece_img: pygame.Surface - image to draw
         """
 
-        teamcolor = 'black' if self.is_team2 else 'white'
         piece_name = self.name
-        if piece_name == 'default': teamcolor = 'none'
+        theme = self.theme
+        teamcolor = 'black' if self.is_team2 else 'white'
+        if piece_name == 'default':
+            theme = '../images'  # loc -> ../images/../images/== ../images/
+            teamcolor = 'none'
 
         # load and return the image
-        loc = "../images/%s-%s.png" % (piece_name, teamcolor)
+        loc = "../images/%s/%s-%s.png" % (theme, piece_name, teamcolor)
         piece_img = pygame.image.load(loc)
         return piece_img
 
