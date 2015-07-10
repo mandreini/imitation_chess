@@ -50,6 +50,15 @@ class Piece(object):
         piece_img = pygame.image.load(loc)
         return piece_img
 
+    def refresh_theme(self, new_theme):
+        """
+        This will load the proper image for the new theme
+        :param new_theme: str - new theme
+        :return:
+        """
+        self.theme = new_theme
+        self._load_image()
+
     def draw(self, screen, xloc, yloc, cell_size):
         """
         Draws the piece to the given screen at the given x and y coordinates
@@ -97,10 +106,11 @@ class Piece(object):
                                 opts_to_add.append(new_opt)
 
                             else:
-                                if populant.is_team2 != self.is_team2:
-                                    opts_to_add.append(new_opt)
+                                if not isinstance(self, Pawn):
+                                    if populant.is_team2 != self.is_team2:
+                                        opts_to_add.append(new_opt)
 
-                                finished_directions.append(movenum)
+                                    finished_directions.append(movenum)
 
                 determining_continuous = continuous
                 if determining_continuous:
@@ -240,18 +250,18 @@ class King(Piece):
         """
         if self.has_moved: return []
 
-        row = self.starting_pos[1]
+        row = self.starting_pos[0]
         y_pos = grid[row]
         left = right = False
 
         # left rook (index 0)
-        rook = y_pos[0] if y_pos[0].name == 'rook' else None
+        rook = y_pos[0] if isinstance(y_pos[0], Rook) else None
         if rook is not None:
             if grid[row][1] == grid[row][2] == 0:
                 left = True
 
         # right rook (index -1)
-        rook = grid[row][-1] if grid[row][-1].name == 'rook' else None
+        rook = y_pos[-1] if isinstance(y_pos[0], Rook) else None
         if rook is not None:
             if y_pos[4] == y_pos[5] == y_pos[6] == 0:
                 right = True

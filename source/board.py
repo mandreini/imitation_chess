@@ -26,31 +26,40 @@ class Board(object):
         grid = [row[:] for j in range(self.units)]
         self.grid = self._setup_grid(grid)
 
+        self.past_moves = []
+
+        self.turn_player_2 = False
+        self.can_undo = False
+        self.pawn_at_end = False
+
         self.selected_cell = None
         self.held_piece = None
         self.piece_original_pos = None
         self.piece_move_options = None
         self.winner = None
-
-        self.turn_player_2 = False
-        self.can_undo = False
-
-        self.past_moves = []
+        self.pawn_to_upgrade = None
+        self.upgrade_pawn_team_2 = None
+        self.dead_piece = None
 
     def _determine_theme_colors(self):
         """
-        Determines the colors corresponding to the theme chosen (currently only supports color changes
+        Determines the colors corresponding to the theme chosen (currently only supports color changes)
         :return:
         """
-        # { key: [background, outline, odd_color, even_color] ... }
+        # { key: [background, outline, odd_color, even_color], ... }
         theme_parameters = {
             'default': [parameters.white, parameters.black, parameters.blue, parameters.dark_blue],
             'simplistic': [parameters.white, parameters.black, parameters.silver_hl, parameters.grey],
             'flipped': [parameters.white, parameters.black, parameters.blue, parameters.dark_blue],
             'vibrant': [parameters.silver_hl, parameters.gold_hl, parameters.brown, parameters.dark_green],
+            'movement': [parameters.white, parameters.black, parameters.black, parameters.grey],
         }
 
-        curr_theme = theme_parameters[self.theme]
+        if theme_parameters.has_key(self.theme):
+            curr_theme = theme_parameters[self.theme]
+        else:
+            curr_theme = theme_parameters['default']
+
         return curr_theme
 
     def _setup_grid(self, grid):
@@ -71,26 +80,40 @@ class Board(object):
             team_2 = not bool(team)
 
             # rooks
-            side[0] = pieces.Rook(team_2, (0, team), self.theme)
-            side[-1] = pieces.Rook(team_2, (-1, team), self.theme)
+            side[0] = pieces.Rook(team_2, (team, 0), self.theme)
+            side[-1] = pieces.Rook(team_2, (team, -1), self.theme)
 
             # knights
-            side[1] = pieces.Knight(team_2, (1, team), self.theme)
-            side[-2] = pieces.Knight(team_2, (-2, team), self.theme)
+            side[1] = pieces.Knight(team_2, (team, 1), self.theme)
+            side[-2] = pieces.Knight(team_2, (team, -2), self.theme)
 
             # bishops
-            side[2] = pieces.Bishop(team_2, (2, team), self.theme)
-            side[-3] = pieces.Bishop(team_2, (-3, team), self.theme)
+            side[2] = pieces.Bishop(team_2, (team, 2), self.theme)
+            side[-3] = pieces.Bishop(team_2, (team, -3), self.theme)
 
             # queen
-            side[3] = pieces.Queen(team_2, (3, team), self.theme)
+            side[3] = pieces.Queen(team_2, (team, 3), self.theme)
 
             # king
-            side[4] = pieces.King(team_2, (4, team), self.theme)
+            side[4] = pieces.King(team_2, (team, 4), self.theme)
 
         return grid
 
-    def do_game_event(self, event, mousex, mousey):
+    def refresh_theme(self, new_theme):
+        """
+        This will change the layout of the board without needing to call __init__
+        :param new_theme: str - new theme
+        :return:
+        """
+        self.theme = new_theme
+        self.background_color, self.outline, self.odd_color, self.even_color = self._determine_theme_colors()
+
+        for row in range(len(self.grid)):
+            for col in range(row):
+                if isinstance(self.grid[row][col], pieces.Piece):
+                    self.grid[row][col].refresh_theme(new_theme)
+
+    def do_event(self, event, mousex, mousey, heaven):
         """
         This will process the event when the gameboard is active
         :param event: pygame.Event object to process
@@ -101,11 +124,12 @@ class Board(object):
                 new_sel_cell = self.get_square(mousex, mousey)
                 self.selected_cell = new_sel_cell if self.selected_cell != new_sel_cell else None
                 self.grab_piece()
+
                 if self.undo_rect.collidepoint((mousex, mousey)) and self.can_undo:
                     self.undo()
 
             if event.type == pygame.MOUSEBUTTONUP:
-                self.drop_piece(mousex, mousey)
+                self.drop_piece(mousex, mousey, heaven)
 
     def get_square(self, mousex, mousey):
         """
@@ -149,7 +173,7 @@ class Board(object):
                         held_square.castle_opts = castle_opts
                         self.piece_move_options.extend(castle_opts[::3])
 
-    def drop_piece(self, mousex, mousey):
+    def drop_piece(self, mousex, mousey, graveyard):
         """
         If there is a piece being held, drops the piece on the square the mouse is hovering over on mouse-up
         :param mousex: int - x position of the mouse
@@ -164,14 +188,21 @@ class Board(object):
                 self.turn_player_2 = not self.turn_player_2
 
                 mouse_row, mouse_col = mouse_pos
+                new_grid_pos = self.grid[mouse_row][mouse_col]
 
+                if isinstance(new_grid_pos, pieces.Piece):
+                    # graveyard.add_piece(self.grid[mouse_row][mouse_col].piece_num)
+                    graveyard.set_dead_piece(new_grid_pos.name, (mousex, mousey))
+
+                # store move for undo
                 old_pos = self.piece_original_pos
                 old_piece = self.held_piece
                 new_pos = mouse_pos
-                new_piece = copy.deepcopy(self.grid[mouse_row][mouse_col])
-                self.past_moves.append((old_pos, old_piece, new_pos, new_piece))
+                new_piece = copy.deepcopy(new_grid_pos)
+                has_moved = self.held_piece.has_moved
+                self.past_moves.append((old_pos, old_piece, new_pos, new_piece, has_moved))
 
-                if isinstance(self.grid[mouse_row][mouse_col], pieces.King):
+                if isinstance(new_grid_pos, pieces.King):
                     self.winner = self.held_piece.is_team2
 
                 self.grid[mouse_row][mouse_col] = self.held_piece
@@ -191,6 +222,11 @@ class Board(object):
                         self.grid[rook_old_pos[0]][rook_old_pos[1]], self.grid[rook_new_pos[0]][rook_new_pos[1]] = \
                         self.grid[rook_new_pos[0]][rook_new_pos[1]], self.grid[rook_old_pos[0]][rook_old_pos[1]]
 
+                if isinstance(self.held_piece, pieces.Pawn):
+                    if self.held_piece.current_pos[0] == 0 or self.held_piece.current_pos[0] == 7:
+                        self.pawn_at_end = True
+                        self.pawn_to_upgrade = self.held_piece.current_pos
+
                 self.can_undo = True
 
             else:
@@ -200,17 +236,50 @@ class Board(object):
             self.selected_cell = None
             self.piece_original_pos = None
 
+    def pawn_upgrade(self, position, is_team2, choice=3):
+        """
+        This will change a pawn into the choice piece when said pawn has reached the end of the board
+        :param choice: pieces.Piece object to change the pawn into
+        """
+
+        piece_opts = [pieces.Rook, pieces.Knight, pieces.Bishop, pieces.Queen]
+        choice_piece = piece_opts[choice]
+
+        self.grid[position[0]][position[1]] = choice_piece(is_team2, self.pawn_to_upgrade, self.theme)
+        self.grid[position[0]][position[1]].has_moved = True
+        self.past_moves.append(['pawn_upgrade', self.pawn_to_upgrade])
+
+        self.pawn_to_upgrade = None
+        self.pawn_at_end = False
+
     def undo(self):
         """ Undoes the last move """
-        # TODO un-break
-        old_pos, old_piece, new_pos, new_piece = self.past_moves[-1]
+        last_move = self.past_moves[-1]
         self.past_moves.pop(-1)
-        # new_piece -> old_pos
-        # old_piece -> new_pos
-        self.grid[old_pos[0]][old_pos[1]] = new_piece
-        self.grid[new_pos[0]][new_pos[1]] = old_piece
+
+        if last_move[0] == 'pawn_upgrade':
+            self.downgrade_pawn(last_move[1])
+            last_move = self.past_moves[-1]
+            self.past_moves.pop(-1)
+
+        old_pos, old_piece, new_pos, new_piece, has_moved = last_move
+        self.grid[old_pos[0]][old_pos[1]] = old_piece
+        self.grid[new_pos[0]][new_pos[1]] = new_piece
+
+        old_piece.has_moved = has_moved
 
         self.turn_player_2 = not self.turn_player_2
+
+        self.can_undo = len(self.past_moves) > 0
+
+    def downgrade_pawn(self, position):
+        """
+        This will revert the upgraded pawn back into a pawn
+        :param position: tuple - grid location of the piece to revert to a pawn
+        """
+        grid_pos = self.grid[position[0]][position[1]]
+        grid_pos = pieces.Pawn(is_team2=self.turn_player_2, starting_pos=position, theme=self.theme)
+        grid_pos.has_moved = True
 
     def draw(self, screen, mousex, mousey):
         """

@@ -25,6 +25,7 @@ title_font = font.SysFont(None, 75)
 start_font = font.SysFont(None, 30)
 undo_font = font.SysFont(None, 45)
 win_font = font.SysFont(None, 60)
+heaven_font = font.SysFont(None, 25)
 
 # game settings
 units = 8

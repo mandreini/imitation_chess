@@ -1,9 +1,8 @@
 TODO:
-  Win condition
+  Theme change (without resetting game / calling __init__ again)
+  Complex win condition
   custom board setup
-  better menu?
-  AI for when I have all the time
-  etc etc
+  bitmaps for board/menu instead of raw colors
 
 Already Done:
   Board setup
@@ -15,12 +14,18 @@ Already Done:
   Only let piece move if it's a valid move
   Castling
   Turns!
+  Simple win condition (king was taken off)
   Themes
+  Undo
+  'store'/show taken-off pieces
+  Pawn reaching end of board can change to be any piece
+  'animation' of pieces moving to graveyard
 
 Issues:
   Pawn can move forward 2 blocks and take off a piece
-  Undo - copy.deepcopy makes pygame cry for some unknown reason
-  copy.deepcopy still gives a pointer/reference and thus board.undo is broken
+  Cannot undo a pawn replace operation
+  The copy.deepcopy is causing many issues with pygame :(
+  Changing theme is derped
 
 Menu options:
   1-2 players

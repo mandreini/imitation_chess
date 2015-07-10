@@ -4,11 +4,6 @@ import copy
 import pygame
 import parameters
 
-class Button(object):
-    """A button object to be used with the Menu object"""
-
-
-
 class Menu(object):
     """The menu object for imitation_chess"""
 
@@ -34,14 +29,16 @@ class Menu(object):
         default_theme = self._create_button(parameters.start_font, "default", parameters.white,
                                             (parameters.xmax/2, parameters.ymax/2), parameters.blue)
         simple_theme = self._create_button(parameters.start_font, "simple", parameters.white,
-                                           (parameters.xmax / 2, parameters.ymax / 2), parameters.blue)
+                                           (parameters.xmax/2, parameters.ymax/2), parameters.blue)
         flipped_theme = self._create_button(parameters.start_font, "flipped", parameters.white,
-                                            (parameters.xmax / 2, parameters.ymax / 2), parameters.blue)
+                                            (parameters.xmax/2, parameters.ymax/2), parameters.blue)
         vibrant_theme = self._create_button(parameters.start_font, "vibrant", parameters.white,
-                                            (parameters.xmax / 2, parameters.ymax / 2), parameters.blue)
+                                            (parameters.xmax/2, parameters.ymax/2), parameters.blue)
+        movement_theme = self._create_button(parameters.start_font, "movement", parameters.white,
+                                             (parameters.xmax/2, parameters.ymax/2), parameters.blue)
 
-        self.themes = ['default', 'simplistic', 'flipped', 'vibrant']
-        self.theme_buttons = [default_theme, simple_theme, flipped_theme, vibrant_theme]
+        self.themes = ['default', 'simplistic', 'flipped', 'vibrant', 'movement']
+        self.theme_buttons = [default_theme, simple_theme, flipped_theme, vibrant_theme, movement_theme]
         self.curr_theme_ind = 0
         self.curr_theme_button = self.theme_buttons[self.curr_theme_ind]
 
@@ -73,7 +70,7 @@ class Menu(object):
 
         return txt, rect, background, back_rect
 
-    def do_menu_event(self, event, mousex, mousey):
+    def do_event(self, event, mousex, mousey):
         """
         Processes events for in the menu
         :param event: pygame.Event object
@@ -102,6 +99,8 @@ class Menu(object):
             if in_theme: theme_back.set_alpha(128)
 
         if event.type == pygame.MOUSEBUTTONUP:
+            self.choice_made = True
+
             if in_start:
                 self.start_new_game = True
                 self.in_menu = False
